@@ -30,19 +30,24 @@ get_db_credentials() {
 
 echo "Setting up reMarket Backend..."
 
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
-    python -m venv venv || handle_error "Failed to create virtual environment"
+# Check if uv is installed, install if not
+if ! command -v uv &> /dev/null; then
+    echo "Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh || handle_error "Failed to install uv"
+    source $HOME/.cargo/env
 fi
+
+# Create virtual environment with uv
+echo "Creating virtual environment with uv..."
+uv venv || handle_error "Failed to create virtual environment"
 
 # Activate virtual environment
 echo "Activating virtual environment..."
-source venv/bin/activate || handle_error "Failed to activate virtual environment"
+source .venv/bin/activate || handle_error "Failed to activate virtual environment"
 
-# Install dependencies
+# Install dependencies with uv
 echo "Installing dependencies..."
-pip install -r requirements.txt || handle_error "Failed to install dependencies"
+uv pip install -r requirements.txt || handle_error "Failed to install dependencies"
 
 # Check if database credentials are set in environment variables
 if [ -z "${DB_USER}" ] || [ -z "${DB_PASSWORD}" ] || [ -z "${DB_HOST}" ] || [ -z "${DB_PORT}" ] || [ -z "${DB_NAME}" ]; then
