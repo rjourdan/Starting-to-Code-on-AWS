@@ -19,7 +19,7 @@ sudo -u postgres createdb remarketdb
 # Clone repository to Bitnami projects directory
 sudo mkdir -p /opt/bitnami/projects
 cd /opt/bitnami/projects
-sudo git clone https://github.com/rjourdan/Starting-to-Code-on-AWS.git remarket
+sudo git clone -b step1-monolith-Lightsail https://github.com/rjourdan/Starting-to-Code-on-AWS.git remarket
 sudo chown -R bitnami:bitnami /opt/bitnami/projects/remarket
 
 # Setup backend
@@ -34,7 +34,7 @@ pnpm build
 
 # Download post-installation script
 cd /opt/bitnami/projects/remarket
-curl -o post-install-script.sh https://raw.githubusercontent.com/rjourdan/Starting-to-Code-on-AWS/main/post-install-script.sh
+curl -o post-install-script.sh https://raw.githubusercontent.com/rjourdan/Starting-to-Code-on-AWS/step1-monolith-Lightsail/post-install-script.sh
 chmod +x post-install-script.sh
 
 echo "Initial setup complete!"
