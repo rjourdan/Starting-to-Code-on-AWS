@@ -23,9 +23,12 @@ read -p "Waiting for DNS configuration..."
 
 # Verify DNS resolution before proceeding
 echo "Verifying DNS propagation..."
-while ! nslookup $DOMAIN | grep -q $PUBLIC_IP; do
-    echo "DNS not yet propagated. Waiting 30 seconds..."
+RESOLVED_IP=$(dig +short $DOMAIN | tail -n1)
+while [ "$RESOLVED_IP" != "$PUBLIC_IP" ]; do
+    echo "DNS not yet propagated. Current: $RESOLVED_IP, Expected: $PUBLIC_IP"
+    echo "Waiting 30 seconds..."
     sleep 30
+    RESOLVED_IP=$(dig +short $DOMAIN | tail -n1)
 done
 
 echo "DNS verified! Configuring SSL certificate..."
