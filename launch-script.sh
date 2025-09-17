@@ -6,7 +6,7 @@
 set -e
 
 # Update system and install PostgreSQL
-sudo apt update
+sudo apt update -y
 sudo apt install -y postgresql
 
 # Start PostgreSQL service
@@ -26,10 +26,16 @@ sudo chown -R bitnami:bitnami /opt/bitnami/projects/remarket
 cd /opt/bitnami/projects/remarket/reMarket-BackEnd
 chmod +x setup.sh
 nohup ./setup.sh > setup.log 2>&1 < /dev/null &
+SETUP_PID=$!
 
 # Setup frontend dependencies
 cd ../reMarket-FrontEnd
 pnpm install
+
+# Wait for backend setup to complete
+wait $SETUP_PID
+
+# Build frontend
 pnpm build
 
 # Download post-installation script
