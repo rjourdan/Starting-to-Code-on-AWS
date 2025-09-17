@@ -33,6 +33,8 @@ echo "Backend started with PID: $SETUP_PID"
 # Setup frontend dependencies
 echo "Setup frontend dependencies"
 cd ../reMarket-FrontEnd
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+corepack enable
 pnpm install
 
 # Wait for backend setup to complete
