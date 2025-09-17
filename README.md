@@ -16,8 +16,8 @@ To deploy this application on AWS Lightsail with SSL certificates, follow these 
 
 3. **Complete SSL Setup**: SSH into your instance and run the post-installation script:
    ```bash
-   cd /opt/bitnami/projects/remarket
-   export DOMAIN="yourdomain.com"
+   
+   export DOMAIN="ycd /opt/bitnami/projects/remarketourdomain.com"
    export EMAIL="your-email@yourdomain.com"
    ./post-install-script.sh
    ```

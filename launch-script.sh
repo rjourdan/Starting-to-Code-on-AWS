@@ -23,12 +23,15 @@ sudo git clone -b step1-monolith-Lightsail https://github.com/rjourdan/Starting-
 sudo chown -R bitnami:bitnami /opt/bitnami/projects/remarket
 
 # Setup backend as daemon
+echo "Starting the backend"
 cd /opt/bitnami/projects/remarket/reMarket-BackEnd
 chmod +x setup.sh
 nohup ./setup.sh > setup.log 2>&1 < /dev/null &
 SETUP_PID=$!
+echo "Backend started with PID: $SETUP_PID"
 
 # Setup frontend dependencies
+echo "Setup frontend dependencies"
 cd ../reMarket-FrontEnd
 pnpm install
 
@@ -36,9 +39,11 @@ pnpm install
 wait $SETUP_PID
 
 # Build frontend
+echo "Build frontend"
 pnpm build
 
 # Download post-installation script
+echo "Download post-installation script"
 cd /opt/bitnami/projects/remarket
 curl -o post-install-script.sh https://raw.githubusercontent.com/rjourdan/Starting-to-Code-on-AWS/step1-monolith-Lightsail/post-install-script.sh
 chmod +x post-install-script.sh
