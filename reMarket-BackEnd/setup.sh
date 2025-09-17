@@ -34,7 +34,7 @@ echo "Setting up reMarket Backend..."
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh || handle_error "Failed to install uv"
-    source $HOME/.cargo/env
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
 # Create virtual environment with uv
