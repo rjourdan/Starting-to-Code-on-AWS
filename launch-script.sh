@@ -22,10 +22,10 @@ cd /opt/bitnami/projects
 sudo git clone -b step1-monolith-Lightsail https://github.com/rjourdan/Starting-to-Code-on-AWS.git remarket
 sudo chown -R bitnami:bitnami /opt/bitnami/projects/remarket
 
-# Setup backend
+# Setup backend as daemon
 cd /opt/bitnami/projects/remarket/reMarket-BackEnd
 chmod +x setup.sh
-./setup.sh
+nohup ./setup.sh > setup.log 2>&1 < /dev/null &
 
 # Setup frontend dependencies
 cd ../reMarket-FrontEnd
