@@ -42,37 +42,34 @@ export DB_HOST=localhost
 export DB_PORT=5432
 export DB_NAME=remarketdb
 
-# Setup backend
+# Setup backend using Python 3.11 to avoid compatibility issues
 echo "Starting the backend setup"
 cd /opt/bitnami/projects/remarket/reMarket-BackEnd
-chmod +x setup.sh
 
-# Run setup in background and capture output
-nohup ./setup.sh > setup.log 2>&1 &
-SETUP_PID=$!
-echo "Backend setup started with PID: $SETUP_PID"
+# Create virtual environment with Python 3.11 and install dependencies directly
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt &
+BACKEND_PID=$!
+echo "Backend setup started with PID: $BACKEND_PID"
 
 # Setup frontend dependencies while backend is setting up
 echo "Setup frontend dependencies"
 cd ../reMarket-FrontEnd
 
-export COREPACK_ENABLE_AUTO_PIN=0
-corepack enable
+# Use npm to install pnpm globally with sudo to avoid permission issues
+sudo npm install -g pnpm || echo "pnpm already installed"
 
-# Install pnpm if not available
-if ! command -v pnpm &> /dev/null; then
-    npm install -g pnpm
-fi
-
-pnpm install
+# Install frontend dependencies
+/opt/bitnami/node/bin/pnpm install
 
 # Wait for backend setup to complete
-wait $SETUP_PID
+wait $BACKEND_PID
 echo "Backend setup completed"
 
-# Build frontend
+# Build frontend with increased memory limit
 echo "Build frontend"
-NODE_OPTIONS='--max-old-space-size=1024' pnpm build
+NODE_OPTIONS='--max-old-space-size=1024' /opt/bitnami/node/bin/pnpm build
 
 # Create a systemd service for the backend
 sudo tee /etc/systemd/system/remarket-backend.service > /dev/null << EOF
@@ -99,11 +96,6 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-# Enable and start the backend service
-sudo systemctl daemon-reload
-sudo systemctl enable remarket-backend.service
-sudo systemctl start remarket-backend.service
-
 # Create a systemd service for the frontend
 sudo tee /etc/systemd/system/remarket-frontend.service > /dev/null << 'EOF'
 [Unit]
@@ -125,9 +117,10 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-# Enable and start the frontend service
-sudo systemctl enable remarket-frontend.service
-sudo systemctl start remarket-frontend.service
+# Enable and start the services
+sudo systemctl daemon-reload
+sudo systemctl enable remarket-backend.service remarket-frontend.service
+sudo systemctl start remarket-backend.service remarket-frontend.service
 
 # Download post-installation script
 echo "Download post-installation script"
