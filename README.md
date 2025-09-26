@@ -7,6 +7,7 @@ To deploy this application on AWS Lightsail with SSL certificates, follow these 
 
 1. **Launch Instance**: Create a Bitnami Node.js instance in Lightsail. In the "Launch script" section, add:
    ```bash
+   export DB_PASSWORD="your_secure_password_here"
    curl -o launch-script.sh https://raw.githubusercontent.com/rjourdan/Starting-to-Code-on-AWS/step1-monolith-Lightsail/launch-script.sh
    chmod +x launch-script.sh
    ./launch-script.sh
@@ -16,12 +17,12 @@ To deploy this application on AWS Lightsail with SSL certificates, follow these 
 
 3. **Complete SSL Setup**: SSH into your instance and run the post-installation script:
    ```bash
-   
-   export DOMAIN="ycd /opt/bitnami/projects/remarketourdomain.com"
+   cd /opt/bitnami/projects/remarket
+   export DOMAIN="yourdomain.com"
    export EMAIL="your-email@yourdomain.com"
    ./post-install-script.sh
    ```
 
 4. **Open Ports**: In Lightsail networking, ensure ports 80 (HTTP), 443 (HTTPS), and 22 (SSH) are open.
 
-The launch script installs PostgreSQL and prepares the application. The post-installation script handles DNS verification, SSL certificate generation via Bitnami's Let's Encrypt tool, and starts the frontend service.
+The launch script installs PostgreSQL, sets up both backend and frontend services, and prepares the application. The post-installation script handles DNS verification, SSL certificate generation via Bitnami's Let's Encrypt tool, and configures HTTPS.

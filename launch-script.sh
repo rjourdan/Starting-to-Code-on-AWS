@@ -5,16 +5,6 @@
 
 set -e
 
-# TODO: Replace YOUR_DB_PASSWORD with your actual PostgreSQL password before running
-DB_PASSWORD="YOUR_DB_PASSWORD"
-
-# Validate that password has been set
-if [ "$DB_PASSWORD" = "YOUR_DB_PASSWORD" ]; then
-    echo "ERROR: Please replace YOUR_DB_PASSWORD with your actual database password in this script"
-    echo "Edit this script and change the DB_PASSWORD variable on line 8"
-    exit 1
-fi
-
 # Update system and install PostgreSQL with development headers
 sudo apt update -y
 sudo apt install -y postgresql postgresql-contrib libpq-dev python3-dev build-essential python3.11-venv
