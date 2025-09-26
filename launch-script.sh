@@ -72,7 +72,7 @@ echo "Build frontend"
 NODE_OPTIONS='--max-old-space-size=1024' /opt/bitnami/node/bin/pnpm build
 
 # Create a systemd service for the backend
-sudo tee /etc/systemd/system/remarket-backend.service > /dev/null << EOF
+sudo tee /etc/systemd/system/remarket-backend.service > /dev/null <<EOF
 [Unit]
 Description=ReMarket Backend API
 After=network.target postgresql.service
@@ -84,7 +84,7 @@ User=bitnami
 WorkingDirectory=/opt/bitnami/projects/remarket/reMarket-BackEnd
 Environment=PATH=/opt/bitnami/projects/remarket/reMarket-BackEnd/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=DB_USER=postgres
-Environment=DB_PASSWORD=$DB_PASSWORD
+Environment=DB_PASSWORD=${DB_PASSWORD}
 Environment=DB_HOST=localhost
 Environment=DB_PORT=5432
 Environment=DB_NAME=remarketdb
