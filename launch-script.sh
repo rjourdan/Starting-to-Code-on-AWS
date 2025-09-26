@@ -39,9 +39,8 @@ cd /opt/bitnami/projects/remarket/reMarket-BackEnd
 # Create virtual environment with Python 3.11 and install dependencies directly
 python3.11 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements.txt &
-BACKEND_PID=$!
-echo "Backend setup started with PID: $BACKEND_PID"
+pip install -r requirements.txt
+echo "Backend setup completed"
 
 # Setup frontend dependencies while backend is setting up
 echo "Setup frontend dependencies"
@@ -52,10 +51,6 @@ sudo npm install -g pnpm || echo "pnpm already installed"
 
 # Install frontend dependencies
 /opt/bitnami/node/bin/pnpm install
-
-# Wait for backend setup to complete
-wait $BACKEND_PID
-echo "Backend setup completed"
 
 # Build frontend with increased memory limit
 echo "Build frontend"
@@ -98,7 +93,7 @@ User=bitnami
 WorkingDirectory=/opt/bitnami/projects/remarket/reMarket-FrontEnd
 Environment=PATH=/opt/bitnami/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=NODE_ENV=production
-Environment=NEXT_PUBLIC_API_URL=http://localhost:8000
+Environment=NEXT_PUBLIC_API_URL=http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):8000
 ExecStart=/opt/bitnami/projects/remarket/reMarket-FrontEnd/node_modules/.bin/next start --port 3000
 Restart=always
 RestartSec=3
