@@ -17,7 +17,7 @@ fi
 
 # Update system and install PostgreSQL with development headers
 sudo apt update -y
-sudo apt install -y postgresql postgresql-contrib libpq-dev python3-dev build-essential
+sudo apt install -y postgresql postgresql-contrib libpq-dev python3-dev build-essential python3.11-venv
 
 # Start PostgreSQL service
 sudo systemctl start postgresql
@@ -72,7 +72,7 @@ echo "Backend setup completed"
 
 # Build frontend
 echo "Build frontend"
-pnpm build
+NODE_OPTIONS='--max-old-space-size=1024' pnpm build
 
 # Create a systemd service for the backend
 sudo tee /etc/systemd/system/remarket-backend.service > /dev/null << EOF
@@ -85,7 +85,7 @@ Requires=postgresql.service
 Type=simple
 User=bitnami
 WorkingDirectory=/opt/bitnami/projects/remarket/reMarket-BackEnd
-Environment=PATH=/home/bitnami/.local/bin:/opt/bitnami/projects/remarket/reMarket-BackEnd/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PATH=/opt/bitnami/projects/remarket/reMarket-BackEnd/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=DB_USER=postgres
 Environment=DB_PASSWORD=$DB_PASSWORD
 Environment=DB_HOST=localhost
@@ -104,6 +104,31 @@ sudo systemctl daemon-reload
 sudo systemctl enable remarket-backend.service
 sudo systemctl start remarket-backend.service
 
+# Create a systemd service for the frontend
+sudo tee /etc/systemd/system/remarket-frontend.service > /dev/null << 'EOF'
+[Unit]
+Description=ReMarket Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=bitnami
+WorkingDirectory=/opt/bitnami/projects/remarket/reMarket-FrontEnd
+Environment=PATH=/opt/bitnami/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+Environment=NEXT_PUBLIC_API_URL=http://localhost:8000
+ExecStart=/opt/bitnami/projects/remarket/reMarket-FrontEnd/node_modules/.bin/next start --port 3000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start the frontend service
+sudo systemctl enable remarket-frontend.service
+sudo systemctl start remarket-frontend.service
+
 # Download post-installation script
 echo "Download post-installation script"
 cd /opt/bitnami/projects/remarket
@@ -112,8 +137,10 @@ chmod +x post-install-script.sh
 
 echo "Setup complete!"
 echo "Backend API is running at http://localhost:8000"
+echo "Frontend is running at http://localhost:3000"
 echo "API documentation is available at http://localhost:8000/docs"
 echo "Backend service status: $(sudo systemctl is-active remarket-backend.service)"
+echo "Frontend service status: $(sudo systemctl is-active remarket-frontend.service)"
 echo ""
 echo "Next steps:"
 echo "1. Configure DNS A record to point your domain to this instance's IP"
