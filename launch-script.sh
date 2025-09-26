@@ -40,6 +40,11 @@ cd /opt/bitnami/projects/remarket/reMarket-BackEnd
 python3.11 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
+
+# Initialize database tables and data
+echo "Setting up database..."
+python db_bootstrap/create_db.py
+
 echo "Backend setup completed"
 
 # Setup frontend dependencies while backend is setting up
