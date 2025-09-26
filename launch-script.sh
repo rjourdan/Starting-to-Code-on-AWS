@@ -48,7 +48,7 @@ cd /opt/bitnami/projects/remarket/reMarket-BackEnd
 
 # Create virtual environment with Python 3.11 and install dependencies directly
 python3.11 -m venv .venv
-source .venv/bin/activate
+. .venv/bin/activate
 pip install -r requirements.txt &
 BACKEND_PID=$!
 echo "Backend setup started with PID: $BACKEND_PID"
