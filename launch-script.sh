@@ -57,6 +57,10 @@ sudo npm install -g pnpm || echo "pnpm already installed"
 # Install frontend dependencies
 /opt/bitnami/node/bin/pnpm install
 
+# Update API URL to use external IP for browser access
+PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+sed -i "s|export const API_URL = 'http://localhost:8000';|export const API_URL = 'http://$PUBLIC_IP:8000';|" lib/constants.ts
+
 # Build frontend with increased memory limit
 echo "Build frontend"
 NODE_OPTIONS='--max-old-space-size=1024' /opt/bitnami/node/bin/pnpm build
