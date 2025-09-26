@@ -98,7 +98,7 @@ User=bitnami
 WorkingDirectory=/opt/bitnami/projects/remarket/reMarket-FrontEnd
 Environment=PATH=/opt/bitnami/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=NODE_ENV=production
-Environment=NEXT_PUBLIC_API_URL=http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):8000
+Environment=NEXT_PUBLIC_API_URL=http://localhost:8000
 ExecStart=/opt/bitnami/projects/remarket/reMarket-FrontEnd/node_modules/.bin/next start --port 3000
 Restart=always
 RestartSec=3
