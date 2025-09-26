@@ -56,6 +56,9 @@ echo "Backend setup started with PID: $SETUP_PID"
 echo "Setup frontend dependencies"
 cd ../reMarket-FrontEnd
 
+export COREPACK_ENABLE_AUTO_PIN=0
+corepack enable
+
 # Install pnpm if not available
 if ! command -v pnpm &> /dev/null; then
     npm install -g pnpm
