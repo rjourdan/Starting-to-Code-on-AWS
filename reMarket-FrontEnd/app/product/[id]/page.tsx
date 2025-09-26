@@ -25,6 +25,8 @@ export default function ProductPage() {
     const fetchData = async () => {
       try {
         const productId = Array.isArray(id) ? id[0] : id;
+        if (!productId) return;
+        
         const [productData, categoriesData] = await Promise.all([
           getProduct(productId),
           getCategories()
