@@ -20,13 +20,23 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
 
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    location: Optional[str] = None
+    profile_image: Optional[str] = None
+
 class User(UserBase):
     id: int
     member_since: datetime
     rating: float
+    profile_image: Optional[str] = None
 
     class Config:
         orm_mode = True
+        
+class ProfileImageResponse(BaseModel):
+    url: str
 
 # Category schemas
 class CategoryBase(BaseModel):
@@ -80,10 +90,21 @@ class ProductBase(BaseModel):
     preferred_meetup: Optional[str] = None
 
 class ProductCreate(ProductBase):
-    seller_id: int
     category_id: int
     community_ids: Optional[List[int]] = []
     image_urls: Optional[List[str]] = []
+
+class ProductUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    condition: Optional[str] = None
+    location: Optional[str] = None
+    preferred_meetup: Optional[str] = None
+    category_id: Optional[int] = None
+
+class SoldStatusUpdate(BaseModel):
+    is_sold: bool
 
 class Product(ProductBase):
     id: int

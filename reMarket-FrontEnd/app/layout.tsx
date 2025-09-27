@@ -3,6 +3,8 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
+import { Toaster } from "@/components/ui/toaster"
+import { ErrorBoundary } from "@/components/error-boundary"
 import { Suspense } from "react"
 import { Header } from "@/components/header"
 
@@ -22,12 +24,17 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light">
-          <Suspense fallback={null}>
-            <AuthProvider>
-               <Header />
-              {children}
-            </AuthProvider>
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <AuthProvider>
+                 <Header />
+                <ErrorBoundary>
+                  {children}
+                </ErrorBoundary>
+              </AuthProvider>
+            </Suspense>
+          </ErrorBoundary>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

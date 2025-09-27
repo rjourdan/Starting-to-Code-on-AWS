@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ProductCard } from "@/components/product-card";
 import { CategoryCard } from "@/components/category-card";
-import { getProducts, getCategories, checkApiConnection, Product, Category } from "@/lib/api";
+import { getProducts, getCategories, checkApiConnection, deleteProduct, toggleProductSoldStatus, Product, Category } from "@/lib/api";
+import { getImageUrl } from "@/lib/image-utils";
+import { showSuccessToast, showErrorToast } from "@/lib/toast-utils";
 
 export default function Home() {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,6 +49,45 @@ export default function Home() {
 
     fetchData();
   }, []);
+
+  // Handler functions for owner actions
+  const handleEdit = (productId: number) => {
+    router.push(`/edit-listing/${productId}`);
+  };
+
+  const handleDelete = async (productId: number) => {
+    setActionLoading(productId);
+    try {
+      await deleteProduct(productId);
+      // Remove the deleted product from the local state
+      setProducts(prevProducts => prevProducts.filter(p => p.id !== productId));
+      showSuccessToast("Listing deleted successfully");
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      showErrorToast(error, "Failed to delete listing");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleToggleSold = async (productId: number, sold: boolean) => {
+    setActionLoading(productId);
+    try {
+      const updatedProduct = await toggleProductSoldStatus(productId, { is_sold: sold });
+      // Update the product in the local state
+      setProducts(prevProducts => 
+        prevProducts.map(p => p.id === productId ? updatedProduct : p)
+      );
+      showSuccessToast(
+        sold ? "Listing marked as sold" : "Listing marked as available"
+      );
+    } catch (error) {
+      console.error("Error updating sold status:", error);
+      showErrorToast(error, "Failed to update listing status");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -82,9 +126,14 @@ export default function Home() {
                     title={product.title}
                     price={product.price}
                     location={product.location}
-                    image={product.images.find(img => img.is_primary)?.url || "/placeholder.svg"}
+                    image={getImageUrl(product.images.find(img => img.is_primary)?.url)}
                     category={categories.find(c => c.id === product.category_id)?.name || "Unknown"}
                     timePosted={new Date(product.created_at).toLocaleDateString()}
+                    isSold={product.is_sold}
+                    sellerId={product.seller_id}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onToggleSold={handleToggleSold}
                   />
                 ))}
           </div>

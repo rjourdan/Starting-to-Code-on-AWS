@@ -33,6 +33,7 @@ class User(Base):
     location = Column(String(100))
     member_since = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     rating = Column(Float, default=0.0)
+    profile_image = Column(String(255), nullable=True)
     
     # Relationships
     products = relationship("Product", back_populates="seller")

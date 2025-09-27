@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Upload, Loader2, Home } from "lucide-react"
+import { ArrowLeft, Loader2, Home } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { ImageManager, type ProductImage } from "@/components/ui/image-manager"
+import { ImageManager, ProductImage } from "@/components/ui/image-manager"
 import { 
   Breadcrumb,
   BreadcrumbList,
@@ -27,70 +27,131 @@ import {
 import { 
   showErrorToast, 
   showSuccessToast, 
-  showListingWarning,
   showImagesUploadedSuccess,
-  SUCCESS_MESSAGES,
-  WARNING_MESSAGES 
+  SUCCESS_MESSAGES 
 } from "@/lib/toast-utils"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { PageLoading } from "@/components/ui/loading-states"
 
 import { 
-  createProduct, 
-  getCategories,
-  uploadProductImages,
+  getProduct, 
+  updateProduct, 
+  getCategories, 
+  uploadProductImages, 
+  deleteProductImage,
+  type Product, 
   type Category,
-  type ProductFormData 
+  type ProductUpdateData 
 } from "@/lib/api"
 import { 
-  productCreationSchema, 
+  productEditSchema, 
   validateSingleImage,
-  type ProductCreationData 
+  type ProductEditData 
 } from "@/lib/validation-schemas"
 
-type SellListingFormData = ProductCreationData
+type EditListingFormData = ProductEditData
 
-export default function SellPage() {
+export default function EditListingPage() {
   const router = useRouter()
+  const params = useParams()
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [product, setProduct] = useState<Product | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [images, setImages] = useState<ProductImage[]>([])
-  const [isUploadingImages, setIsUploadingImages] = useState(false)
-  const [imageFiles, setImageFiles] = useState<File[]>([]) // Store original files for upload
+  const [imageUploading, setImageUploading] = useState(false)
 
-  const form = useForm<SellListingFormData>({
-    resolver: zodResolver(productCreationSchema),
+  const form = useForm<EditListingFormData>({
+    resolver: zodResolver(productEditSchema),
     defaultValues: {
       title: "",
       description: "",
       price: 0,
-      condition: undefined,
+      condition: "good",
       location: "",
       preferred_meetup: "",
       category_id: 0,
     },
   })
 
-  // Load categories on component mount
+  // Load product data and categories
   useEffect(() => {
-    const loadCategories = async () => {
+    const loadData = async () => {
       try {
-        const categoriesData = await getCategories()
+        setLoading(true)
+        const productId = params.id as string
+        
+        // Load product and categories in parallel
+        const [productData, categoriesData] = await Promise.all([
+          getProduct(productId),
+          getCategories()
+        ])
+
+        setProduct(productData)
         setCategories(categoriesData)
+        setImages(productData.images || [])
+
+        // Populate form with existing data
+        form.reset({
+          title: productData.title,
+          description: productData.description,
+          price: productData.price,
+          condition: productData.condition as any,
+          location: productData.location,
+          preferred_meetup: productData.preferred_meetup || "",
+          category_id: productData.category_id,
+        })
       } catch (error) {
-        console.error('Error loading categories:', error)
-        showErrorToast(error, "Failed to load categories")
+        console.error("Error loading data:", error)
+        showErrorToast(error, "Failed to load listing data")
+        router.push("/my-listings")
+      } finally {
+        setLoading(false)
       }
     }
 
-    loadCategories()
-  }, [])
+    if (params.id) {
+      loadData()
+    }
+  }, [params.id, form, router])
 
-  // Image upload handlers
+  // Handle form submission
+  const onSubmit = async (data: EditListingFormData) => {
+    if (!product) return
+
+    try {
+      setSubmitting(true)
+      
+      const updateData: ProductUpdateData = {
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        condition: data.condition,
+        location: data.location,
+        preferred_meetup: data.preferred_meetup || undefined,
+        category_id: data.category_id,
+      }
+
+      await updateProduct(product.id, updateData)
+      
+      showSuccessToast(SUCCESS_MESSAGES.LISTING_UPDATED.title, SUCCESS_MESSAGES.LISTING_UPDATED.description)
+      
+      router.push("/my-listings")
+    } catch (error) {
+      console.error("Error updating product:", error)
+      showErrorToast(error, "Failed to update listing")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle image upload
   const handleImageUpload = async (files: File[]) => {
-    if (files.length === 0) return
+    if (!product) return
 
     // Check if adding these files would exceed the limit
     if (images.length + files.length > 6) {
-      showListingWarning('TOO_MANY_IMAGES')
+      showErrorToast("You can upload a maximum of 6 images per listing.", "Too many images")
       return
     }
 
@@ -103,106 +164,77 @@ export default function SellPage() {
       }
     }
 
-    setIsUploadingImages(true)
     try {
-      // Store original files for later upload
-      setImageFiles(prev => [...prev, ...files])
-
-      // Create temporary image objects with preview URLs
-      const newImages: ProductImage[] = files.map((file, index) => ({
-        id: Date.now() + index, // Temporary ID
-        url: URL.createObjectURL(file),
-        is_primary: images.length === 0 && index === 0, // First image is primary if no images exist
-      }))
-
-      setImages(prev => [...prev, ...newImages])
+      setImageUploading(true)
+      const uploadedImages = await uploadProductImages(product.id, files)
       
-      showSuccessToast(
-        "Images ready",
-        `${files.length} image(s) added successfully. They will be uploaded when you create the listing.`
-      )
+      // Update images state
+      setImages(prev => [...prev, ...uploadedImages])
+      
+      showImagesUploadedSuccess(uploadedImages.length)
     } catch (error) {
-      console.error('Error processing images:', error)
-      showErrorToast(error, "Upload failed")
+      console.error("Error uploading images:", error)
+      showErrorToast(error, "Failed to upload images")
     } finally {
-      setIsUploadingImages(false)
+      setImageUploading(false)
     }
   }
 
-  const handleImageDelete = (imageId: number) => {
-    // Find the index of the image being deleted
-    const imageIndex = images.findIndex(img => img.id === imageId)
-    
-    setImages(prev => {
-      const updatedImages = prev.filter(img => img.id !== imageId)
-      
-      // If we deleted the primary image, make the first remaining image primary
-      if (updatedImages.length > 0 && !updatedImages.some(img => img.is_primary)) {
-        updatedImages[0].is_primary = true
-      }
-      
-      return updatedImages
-    })
+  // Handle image deletion
+  const handleImageDelete = async (imageId: number) => {
+    if (!product) return
 
-    // Also remove the corresponding file from imageFiles array
-    if (imageIndex !== -1) {
-      setImageFiles(prev => prev.filter((_, index) => index !== imageIndex))
+    try {
+      await deleteProductImage(product.id, imageId)
+      
+      // Update images state
+      setImages(prev => prev.filter(img => img.id !== imageId))
+      
+      showSuccessToast("Success", "Image deleted successfully.")
+    } catch (error) {
+      console.error("Error deleting image:", error)
+      showErrorToast(error, "Failed to delete image")
     }
-    
-    showSuccessToast("Image removed", "Image has been removed from your listing.")
   }
 
-  const handleSetPrimary = (imageId: number) => {
+  // Handle setting primary image
+  const handleSetPrimary = async (imageId: number) => {
+    // Update images state optimistically
     setImages(prev => prev.map(img => ({
       ...img,
       is_primary: img.id === imageId
     })))
     
-    showSuccessToast("Primary image updated", "This image will be shown as the main photo for your listing.")
+    showSuccessToast("Success", "Primary image updated.")
   }
 
-  const onSubmit = async (data: SellListingFormData) => {
-    setIsSubmitting(true)
-    try {
-      const productData: ProductFormData = {
-        title: data.title,
-        description: data.description,
-        price: data.price,
-        condition: data.condition,
-        location: data.location,
-        preferred_meetup: data.preferred_meetup || undefined,
-        category_id: data.category_id,
-      }
+  // Handle image reordering
+  const handleImageReorder = (reorderedImages: ProductImage[]) => {
+    setImages(reorderedImages)
+  }
 
-      const newProduct = await createProduct(productData)
-      
-      // If there are images, upload them after creating the product
-      if (imageFiles.length > 0) {
-        try {
-          setIsUploadingImages(true)
-          
-          // Upload images to the newly created product
-          const uploadedImages = await uploadProductImages(newProduct.id, imageFiles)
-          
-          showImagesUploadedSuccess(uploadedImages.length)
-        } catch (imageError) {
-          console.error('Error uploading images:', imageError)
-          showListingWarning('IMAGES_UPLOAD_PARTIAL')
-        } finally {
-          setIsUploadingImages(false)
-        }
-      }
-      
-      showSuccessToast(SUCCESS_MESSAGES.LISTING_CREATED.title, SUCCESS_MESSAGES.LISTING_CREATED.description)
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading listing...</span>
+        </div>
+      </div>
+    )
+  }
 
-      // Redirect to the new product page or my listings
-      router.push(`/product/${newProduct.id}`)
-    } catch (error) {
-      console.error('Error creating product:', error)
-      showErrorToast(error, "Failed to create listing")
-    } finally {
-      setIsSubmitting(false)
-    }
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Listing not found</h1>
+          <Button asChild>
+            <Link href="/my-listings">Back to My Listings</Link>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -220,16 +252,23 @@ export default function SellPage() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>Create Listing</BreadcrumbPage>
+              <BreadcrumbLink asChild>
+                <Link href="/my-listings">My Listings</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Edit Listing</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
         <div className="max-w-2xl mx-auto bg-white rounded-lg border p-6">
-          <h1 className="text-2xl font-bold mb-6">Create a Listing</h1>
+          <h1 className="text-2xl font-bold mb-6">Edit Listing</h1>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Images Section */}
               <div>
                 <h2 className="text-lg font-semibold mb-4">Photos</h2>
                 <ImageManager
@@ -237,14 +276,16 @@ export default function SellPage() {
                   onUpload={handleImageUpload}
                   onDelete={handleImageDelete}
                   onSetPrimary={handleSetPrimary}
+                  onReorder={handleImageReorder}
                   maxImages={6}
-                  loading={isUploadingImages}
-                  disabled={isSubmitting}
+                  loading={imageUploading}
+                  disabled={submitting}
                 />
               </div>
 
               <Separator />
 
+              {/* Listing Details */}
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">Listing Details</h2>
 
@@ -288,7 +329,7 @@ export default function SellPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Category</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value.toString()}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a category" />
@@ -353,6 +394,7 @@ export default function SellPage() {
 
               <Separator />
 
+              {/* Location */}
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">Location</h2>
 
@@ -385,20 +427,24 @@ export default function SellPage() {
                 />
               </div>
 
-              <div className="pt-4">
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating Listing...
-                    </>
-                  ) : (
-                    "Create Listing"
-                  )}
+              {/* Submit Buttons */}
+              <div className="pt-4 flex gap-4">
+                <Button 
+                  type="submit" 
+                  className="flex-1"
+                  disabled={submitting}
+                >
+                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Update Listing
                 </Button>
-                <p className="text-sm text-gray-500 text-center mt-4">
-                  By listing an item, you agree to our terms of service and community guidelines
-                </p>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => router.push("/my-listings")}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
               </div>
             </form>
           </Form>
@@ -413,4 +459,3 @@ export default function SellPage() {
     </div>
   )
 }
-

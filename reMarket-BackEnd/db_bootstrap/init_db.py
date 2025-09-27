@@ -1,18 +1,68 @@
 import sys
 import os
+from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text
 from models import Base, Category, User, Product, ProductImage
 from database import SQLALCHEMY_DATABASE_URL
 from datetime import datetime, timezone
+from image_utils import setup_image_directories, PRODUCT_IMAGES_DIR
+from PIL import Image
+import shutil
+
+def process_and_copy_photo(photo_filename: str, product_id: int) -> str:
+    """
+    Process a photo from the photos folder and copy it to the uploads directory.
+    
+    Args:
+        photo_filename: Name of the photo file in the photos folder
+        product_id: ID of the product this image belongs to
+        
+    Returns:
+        Relative path for the processed image
+    """
+    # Setup image directories
+    setup_image_directories()
+    
+    # Source photo path
+    photos_dir = Path(__file__).parent / "photos"
+    source_path = photos_dir / photo_filename
+    
+    if not source_path.exists():
+        print(f"Warning: Photo {photo_filename} not found")
+        return "/placeholder.svg"
+    
+    # Generate unique filename for the product
+    import uuid
+    unique_id = str(uuid.uuid4())[:8]
+    new_filename = f"product_{product_id}_{unique_id}.webp"
+    
+    # Destination path
+    dest_path = PRODUCT_IMAGES_DIR / new_filename
+    
+    try:
+        # Copy the file to the uploads directory
+        shutil.copy2(source_path, dest_path)
+        print(f"Copied {photo_filename} to {new_filename}")
+        
+        # Return URL path that the frontend can use
+        return f"/uploads/product_images/{new_filename}"
+        
+    except Exception as e:
+        print(f"Error processing photo {photo_filename}: {e}")
+        return "/placeholder.svg"
 
 def init_database():
+    print("Starting database initialization...")
+    print(f"Database URL: {SQLALCHEMY_DATABASE_URL}")
+    
     # Create engine
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
+    print("Database tables created/verified")
     
     # Create a connection
     with engine.connect() as conn:
@@ -29,6 +79,7 @@ def init_database():
         # Check if categories already exist
         result = conn.execute(text("SELECT COUNT(*) FROM categories"))
         count = result.scalar()
+        print(f"Found {count} existing categories")
         
         if count == 0:
             conn.execute(Category.__table__.insert(), categories)
@@ -38,6 +89,7 @@ def init_database():
         # Add a test user if no users exist
         result = conn.execute(text("SELECT COUNT(*) FROM users"))
         count = result.scalar()
+        print(f"Found {count} existing users")
         
         if count == 0:
             # Create test user
@@ -49,7 +101,8 @@ def init_database():
                 "full_name": "Test User",
                 "location": "Test City",
                 "member_since": datetime.now(timezone.utc),
-                "rating": 5.0
+                "rating": 5.0,
+                "profile_image": None
             }
             result = conn.execute(User.__table__.insert(), test_user)
             user_id = result.inserted_primary_key[0]
@@ -59,17 +112,18 @@ def init_database():
             # Add sample products
             result = conn.execute(text("SELECT COUNT(*) FROM products"))
             count = result.scalar()
+            print(f"Found {count} existing products")
             
             if count == 0:
                 # Get category IDs
                 result = conn.execute(text("SELECT id, name FROM categories"))
-                categories_map = {name: id for id, name in result.fetchall()}
-                
-                # Create sample products
+                categories_map = {name: id for id, name in result.fetchall()}       
+         
+                # Create sample products with their corresponding photos
                 sample_products = [
                     {
-                        "title": "Mountain Bike - Trek",
-                        "description": "Trek mountain bike in excellent condition. Only used a few times. Features 21 speeds, front suspension, and disc brakes. Perfect for trails or commuting.",
+                        "title": "Mountain Bike - Scott",
+                        "description": "scott mountain bike in excellent condition. Only used a few times. Features 27 speeds, front suspension, and disc brakes. Perfect for trails or commuting.",
                         "price": 350.00,
                         "condition": "Like New",
                         "location": "Brooklyn, NY",
@@ -77,19 +131,21 @@ def init_database():
                         "created_at": datetime.now(timezone.utc),
                         "is_sold": False,
                         "seller_id": user_id,
-                        "category_id": categories_map["Sports"]
+                        "category_id": categories_map["Sports"],
+                        "photos": ["bike.webp"]
                     },
                     {
-                        "title": "iPhone 13 Pro - 128GB",
+                        "title": "iPhone 13 Pro - 256GB",
                         "description": "iPhone 13 Pro in great condition. Includes original box, charger, and a case. Battery health at 92%. No scratches or dents.",
-                        "price": 650.00,
+                        "price": 300.00,
                         "condition": "Good",
                         "location": "Manhattan, NY",
                         "preferred_meetup": "Apple Store SoHo",
                         "created_at": datetime.now(timezone.utc),
                         "is_sold": False,
                         "seller_id": user_id,
-                        "category_id": categories_map["Electronics"]
+                        "category_id": categories_map["Electronics"],
+                        "photos": ["iphone1.webp", "iphone2.webp"]
                     },
                     {
                         "title": "Designer Jacket - Medium",
@@ -101,11 +157,12 @@ def init_database():
                         "created_at": datetime.now(timezone.utc),
                         "is_sold": False,
                         "seller_id": user_id,
-                        "category_id": categories_map["Clothing"]
+                        "category_id": categories_map["Clothing"],
+                        "photos": []
                     },
                     {
-                        "title": "PlayStation 5 with 2 Controllers",
-                        "description": "PS5 disc edition with two controllers and 3 games. Everything works perfectly. Selling because I don't have time to play anymore.",
+                        "title": "PlayStation 4 with 2 Controllers",
+                        "description": "PS4 disc edition with two controllers and 3 games. Everything works perfectly. Selling because I don't have time to play anymore.",
                         "price": 450.00,
                         "condition": "Good",
                         "location": "Bronx, NY",
@@ -113,11 +170,12 @@ def init_database():
                         "created_at": datetime.now(timezone.utc),
                         "is_sold": False,
                         "seller_id": user_id,
-                        "category_id": categories_map["Games"]
+                        "category_id": categories_map["Games"],
+                        "photos": ["ps4_1.webp", "ps4_2.webp", "ps4_3.webp", "ps4_4.webp"]
                     },
                     {
-                        "title": "Coffee Table - Solid Wood",
-                        "description": "Beautiful solid wood coffee table. Minor scratches but overall in great condition. Dimensions: 48\" x 24\" x 18\".",
+                        "title": "Coffee Table",
+                        "description": "Beautiful wood coffee table. round  white top 3 wood legs 34\". Minor scratches but overall in great condition.",
                         "price": 180.00,
                         "condition": "Good",
                         "location": "Brooklyn, NY",
@@ -125,7 +183,8 @@ def init_database():
                         "created_at": datetime.now(timezone.utc),
                         "is_sold": False,
                         "seller_id": user_id,
-                        "category_id": categories_map["Home"]
+                        "category_id": categories_map["Home"],
+                        "photos": ["coffee-table.webp"]
                     },
                     {
                         "title": "Book Collection - Fantasy Novels",
@@ -137,24 +196,55 @@ def init_database():
                         "created_at": datetime.now(timezone.utc),
                         "is_sold": False,
                         "seller_id": user_id,
-                        "category_id": categories_map["Books"]
+                        "category_id": categories_map["Books"],
+                        "photos": ["books.webp"]
                     },
                     {
                         "title": "White buffet with marble top",
                         "description": "very beautiful.",
-                        "price": 350.00,
+                        "price": 450.00,
                         "condition": "Like New",
                         "location": "San Francisco, CA",
                         "preferred_meetup": "My place, and bring movers!",
                         "created_at": datetime.now(timezone.utc),
                         "is_sold": False,
                         "seller_id": user_id,
-                        "category_id": categories_map["Home"]
+                        "category_id": categories_map["Home"],
+                        "photos": ["buffet.webp"]
+                    },
+                    {
+                        "title": "Dining table and chairs",
+                        "description": "Large dining table, with 4 chairs, 2 arm chairs, very beautiful.",
+                        "price": 550.00,
+                        "condition": "Like New",
+                        "location": "San Francisco, CA",
+                        "preferred_meetup": "My place, and bring movers!",
+                        "created_at": datetime.now(timezone.utc),
+                        "is_sold": False,
+                        "seller_id": user_id,
+                        "category_id": categories_map["Home"],
+                        "photos": ["table.webp"]
+                    },
+                    {
+                        "title": "Queen Size Bed Frame",
+                        "description": "Modern queen size bed frame in excellent condition. Sturdy wooden construction with a sleek design. Easy to assemble and disassemble for moving.",
+                        "price": 200.00,
+                        "condition": "Good",
+                        "location": "Brooklyn, NY",
+                        "preferred_meetup": "My apartment building",
+                        "created_at": datetime.now(timezone.utc),
+                        "is_sold": False,
+                        "seller_id": user_id,
+                        "category_id": categories_map["Home"],
+                        "photos": ["bed.webp"]
                     }
-                ]
-                
+                ]      
+          
                 # Insert products using direct SQL queries
                 for product in sample_products:
+                    # Extract photos list before inserting product
+                    photos = product.pop("photos", [])
+                    
                     query = text("""
                         INSERT INTO products (title, description, price, condition, location, preferred_meetup, created_at, is_sold, seller_id, category_id)
                         VALUES (:title, :description, :price, :condition, :location, :preferred_meetup, :created_at, :is_sold, :seller_id, :category_id)
@@ -164,19 +254,30 @@ def init_database():
                     result = conn.execute(query, product)
                     product_id = result.scalar()
                     
-                    # Add a sample image for each product
+                    # Process and add photos for this product
                     image_query = text("""
                         INSERT INTO product_images (url, is_primary, product_id)
                         VALUES (:url, :is_primary, :product_id)
                     """)
                     
-                    conn.execute(image_query, {
-                        "url": "/placeholder.svg",
-                        "is_primary": True,
-                        "product_id": product_id
-                    })
+                    if photos:
+                        # Add actual photos
+                        for i, photo_filename in enumerate(photos):
+                            image_url = process_and_copy_photo(photo_filename, product_id)
+                            conn.execute(image_query, {
+                                "url": image_url,
+                                "is_primary": i == 0,  # First photo is primary
+                                "product_id": product_id
+                            })
+                    else:
+                        # Add placeholder if no photos
+                        conn.execute(image_query, {
+                            "url": "/placeholder.svg",
+                            "is_primary": True,
+                            "product_id": product_id
+                        })
                     
-                    print(f"Added product: {product['title']} with ID: {product_id}")
+                    print(f"Added product: {product['title']} with ID: {product_id} and {len(photos)} photos")
                 
                 conn.commit()
                 print("Added sample products with images")
