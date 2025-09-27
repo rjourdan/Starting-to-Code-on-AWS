@@ -25,4 +25,4 @@ To deploy this application on AWS Lightsail with SSL certificates, follow these 
 
 4. **Open Ports**: In Lightsail networking, ensure ports 80 (HTTP), 443 (HTTPS), and 22 (SSH) are open.
 
-The launch script installs PostgreSQL, sets up both backend and frontend services, and prepares the application. The post-installation script handles DNS verification, SSL certificate generation via Bitnami's Let's Encrypt tool, and configures HTTPS.
+The launch script installs PostgreSQL, sets up both backend and frontend services with nginx reverse proxy for security. The backend API runs on localhost:8000 (internal only) while nginx proxies API requests from /api/* to the backend. The post-installation script handles DNS verification, SSL certificate generation via Bitnami's Let's Encrypt tool, and configures HTTPS.

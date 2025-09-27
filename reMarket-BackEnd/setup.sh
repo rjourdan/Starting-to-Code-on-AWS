@@ -52,10 +52,11 @@ cd .. || handle_error "Failed to change directory back"
 
 # Start the server
 echo "Starting the server..."
-echo "The API will be available at http://localhost:8000"
+echo "The API will be available internally at http://localhost:8000"
 echo "API documentation will be available at http://localhost:8000/docs"
+echo "Frontend will access API via nginx proxy at /api/"
 echo "Press CTRL+C to stop the server"
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
 
 # Note: The script will not reach this point while the server is running
 # Deactivate virtual environment

@@ -5,9 +5,9 @@
 
 set -e
 
-# Update system and install PostgreSQL with development headers
+# Update system and install PostgreSQL with development headers and nginx
 sudo apt update -y
-sudo apt install -y postgresql postgresql-contrib libpq-dev python3-dev build-essential python3.11-venv
+sudo apt install -y postgresql postgresql-contrib libpq-dev python3-dev build-essential python3.11-venv nginx
 
 # Start PostgreSQL service
 sudo systemctl start postgresql
@@ -57,9 +57,8 @@ sudo npm install -g pnpm || echo "pnpm already installed"
 # Install frontend dependencies
 /opt/bitnami/node/bin/pnpm install
 
-# Update API URL to use external IP for browser access
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-sed -i "s|export const API_URL = 'http://localhost:8000';|export const API_URL = 'http://$PUBLIC_IP:8000';|" lib/constants.ts
+# Update API URL to use /api prefix for nginx proxy
+sed -i "s|export const API_URL = 'http://localhost:8000';|export const API_URL = '/api';|" lib/constants.ts
 
 # Build frontend with increased memory limit
 echo "Build frontend"
@@ -82,7 +81,7 @@ Environment=DB_PASSWORD=${DB_PASSWORD}
 Environment=DB_HOST=localhost
 Environment=DB_PORT=5432
 Environment=DB_NAME=remarketdb
-ExecStart=/opt/bitnami/projects/remarket/reMarket-BackEnd/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/bitnami/projects/remarket/reMarket-BackEnd/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=3
 
@@ -116,6 +115,49 @@ sudo systemctl daemon-reload
 sudo systemctl enable remarket-backend.service remarket-frontend.service
 sudo systemctl start remarket-backend.service remarket-frontend.service
 
+# Stop and disable Bitnami Apache
+sudo /opt/bitnami/ctlscript.sh stop
+sudo systemctl disable bitnami || echo "No bitnami systemd service"
+sudo pkill -9 httpd || echo "No httpd processes"
+
+# Configure nginx reverse proxy
+sudo tee /etc/nginx/sites-available/remarket > /dev/null <<'NGINX_EOF'
+server {
+    listen 80;
+    server_name _;
+
+    # Frontend (Next.js) - proxy to port 3000
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend API proxy - /api/* -> localhost:8000/*
+    location /api/ {
+        rewrite ^/api/(.*) /$1 break;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX_EOF
+
+# Enable nginx site and start nginx
+sudo ln -sf /etc/nginx/sites-available/remarket /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo systemctl enable nginx
+sudo systemctl start nginx
+
 # Download post-installation script
 echo "Download post-installation script"
 cd /opt/bitnami/projects/remarket
@@ -123,11 +165,13 @@ curl -o post-install-script.sh https://raw.githubusercontent.com/rjourdan/Starti
 chmod +x post-install-script.sh
 
 echo "Setup complete!"
-echo "Backend API is running at http://localhost:8000"
-echo "Frontend is running at http://localhost:3000"
-echo "API documentation is available at http://localhost:8000/docs"
+echo "Frontend is accessible at http://[instance-ip] (port 80)"
+echo "Backend API is internal only at http://localhost:8000"
+echo "API accessible via nginx proxy at http://[instance-ip]/api/"
+echo "API documentation is available at http://[instance-ip]/api/docs"
 echo "Backend service status: $(sudo systemctl is-active remarket-backend.service)"
 echo "Frontend service status: $(sudo systemctl is-active remarket-frontend.service)"
+echo "Nginx service status: $(sudo systemctl is-active nginx.service)"
 echo ""
 echo "Next steps:"
 echo "1. Configure DNS A record to point your domain to this instance's IP"
