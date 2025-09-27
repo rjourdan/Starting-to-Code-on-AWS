@@ -7,7 +7,7 @@ To deploy this application on AWS Lightsail with SSL certificates, follow these 
 
 1. **Launch Instance**: Create a Bitnami Node.js instance in Lightsail. In the "Launch script" section, add:
    ```bash
-   export DB_PASSWORD="your_secure_password_here"
+   export DB_PASSWORD="postgres"
    curl -o launch-script.sh https://raw.githubusercontent.com/rjourdan/Starting-to-Code-on-AWS/step1-monolith-Lightsail/launch-script.sh
    chmod +x launch-script.sh
    ./launch-script.sh
