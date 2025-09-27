@@ -44,6 +44,7 @@ pip install -r requirements.txt
 # Initialize database tables and data
 echo "Setting up database..."
 python db_bootstrap/create_db.py
+python db_bootstrap/init_db.py
 
 echo "Backend setup completed"
 
