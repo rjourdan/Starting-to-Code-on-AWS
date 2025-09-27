@@ -1,8 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Upload } from "lucide-react"
+import { ArrowLeft, Upload, Loader2, Home } from "lucide-react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,153 +14,394 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { ImageManager, type ProductImage } from "@/components/ui/image-manager"
+import { 
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+import { 
+  showErrorToast, 
+  showSuccessToast, 
+  showListingWarning,
+  showImagesUploadedSuccess,
+  SUCCESS_MESSAGES,
+  WARNING_MESSAGES 
+} from "@/lib/toast-utils"
+
+import { 
+  createProduct, 
+  getCategories,
+  uploadProductImages,
+  type Category,
+  type ProductFormData 
+} from "@/lib/api"
+import { 
+  productCreationSchema, 
+  validateSingleImage,
+  type ProductCreationData 
+} from "@/lib/validation-schemas"
+
+type SellListingFormData = ProductCreationData
 
 export default function SellPage() {
-  const [images, setImages] = useState<string[]>([])
+  const router = useRouter()
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [images, setImages] = useState<ProductImage[]>([])
+  const [isUploadingImages, setIsUploadingImages] = useState(false)
+  const [imageFiles, setImageFiles] = useState<File[]>([]) // Store original files for upload
 
-  // In a real app, this would handle file uploads
-  const handleImageUpload = () => {
-    // Mock adding a new image
-    setImages([...images, "/placeholder.svg?height=300&width=400"])
+  const form = useForm<SellListingFormData>({
+    resolver: zodResolver(productCreationSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      price: 0,
+      condition: undefined,
+      location: "",
+      preferred_meetup: "",
+      category_id: 0,
+    },
+  })
+
+  // Load categories on component mount
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const categoriesData = await getCategories()
+        setCategories(categoriesData)
+      } catch (error) {
+        console.error('Error loading categories:', error)
+        showErrorToast(error, "Failed to load categories")
+      }
+    }
+
+    loadCategories()
+  }, [])
+
+  // Image upload handlers
+  const handleImageUpload = async (files: File[]) => {
+    if (files.length === 0) return
+
+    // Check if adding these files would exceed the limit
+    if (images.length + files.length > 6) {
+      showListingWarning('TOO_MANY_IMAGES')
+      return
+    }
+
+    // Validate each file using centralized validation
+    for (const file of files) {
+      const validation = validateSingleImage(file)
+      if (!validation.success) {
+        showErrorToast(validation.error.errors[0]?.message || "Invalid file uploaded.", "Invalid file")
+        return
+      }
+    }
+
+    setIsUploadingImages(true)
+    try {
+      // Store original files for later upload
+      setImageFiles(prev => [...prev, ...files])
+
+      // Create temporary image objects with preview URLs
+      const newImages: ProductImage[] = files.map((file, index) => ({
+        id: Date.now() + index, // Temporary ID
+        url: URL.createObjectURL(file),
+        is_primary: images.length === 0 && index === 0, // First image is primary if no images exist
+      }))
+
+      setImages(prev => [...prev, ...newImages])
+      
+      showSuccessToast(
+        "Images ready",
+        `${files.length} image(s) added successfully. They will be uploaded when you create the listing.`
+      )
+    } catch (error) {
+      console.error('Error processing images:', error)
+      showErrorToast(error, "Upload failed")
+    } finally {
+      setIsUploadingImages(false)
+    }
+  }
+
+  const handleImageDelete = (imageId: number) => {
+    // Find the index of the image being deleted
+    const imageIndex = images.findIndex(img => img.id === imageId)
+    
+    setImages(prev => {
+      const updatedImages = prev.filter(img => img.id !== imageId)
+      
+      // If we deleted the primary image, make the first remaining image primary
+      if (updatedImages.length > 0 && !updatedImages.some(img => img.is_primary)) {
+        updatedImages[0].is_primary = true
+      }
+      
+      return updatedImages
+    })
+
+    // Also remove the corresponding file from imageFiles array
+    if (imageIndex !== -1) {
+      setImageFiles(prev => prev.filter((_, index) => index !== imageIndex))
+    }
+    
+    showSuccessToast("Image removed", "Image has been removed from your listing.")
+  }
+
+  const handleSetPrimary = (imageId: number) => {
+    setImages(prev => prev.map(img => ({
+      ...img,
+      is_primary: img.id === imageId
+    })))
+    
+    showSuccessToast("Primary image updated", "This image will be shown as the main photo for your listing.")
+  }
+
+  const onSubmit = async (data: SellListingFormData) => {
+    setIsSubmitting(true)
+    try {
+      const productData: ProductFormData = {
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        condition: data.condition,
+        location: data.location,
+        preferred_meetup: data.preferred_meetup || undefined,
+        category_id: data.category_id,
+      }
+
+      const newProduct = await createProduct(productData)
+      
+      // If there are images, upload them after creating the product
+      if (imageFiles.length > 0) {
+        try {
+          setIsUploadingImages(true)
+          
+          // Upload images to the newly created product
+          const uploadedImages = await uploadProductImages(newProduct.id, imageFiles)
+          
+          showImagesUploadedSuccess(uploadedImages.length)
+        } catch (imageError) {
+          console.error('Error uploading images:', imageError)
+          showListingWarning('IMAGES_UPLOAD_PARTIAL')
+        } finally {
+          setIsUploadingImages(false)
+        }
+      }
+      
+      showSuccessToast(SUCCESS_MESSAGES.LISTING_CREATED.title, SUCCESS_MESSAGES.LISTING_CREATED.description)
+
+      // Redirect to the new product page or my listings
+      router.push(`/product/${newProduct.id}`)
+    } catch (error) {
+      console.error('Error creating product:', error)
+      showErrorToast(error, "Failed to create listing")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold text-emerald-600">
-            ReMarket
-          </Link>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/login">Sign in</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
       <main className="container mx-auto px-4 py-8">
-        <Button variant="ghost" size="sm" asChild className="mb-6">
-          <Link href="/">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to home
-          </Link>
-        </Button>
+        {/* Breadcrumb Navigation */}
+        <Breadcrumb className="mb-6">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/">
+                  <Home className="h-4 w-4" />
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Create Listing</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
         <div className="max-w-2xl mx-auto bg-white rounded-lg border p-6">
           <h1 className="text-2xl font-bold mb-6">Create a Listing</h1>
 
-          <form className="space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold mb-4">Photos</h2>
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                {images.map((image, index) => (
-                  <div key={index} className="relative aspect-square rounded-lg overflow-hidden border bg-gray-100">
-                    <img
-                      src={image || "/placeholder.svg"}
-                      alt={`Listing image ${index + 1}`}
-                      className="object-cover w-full h-full"
-                    />
-                  </div>
-                ))}
-                {images.length < 6 && (
-                  <button
-                    type="button"
-                    onClick={handleImageUpload}
-                    className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center hover:border-emerald-500 hover:bg-emerald-50 transition-colors"
-                  >
-                    <Upload className="h-6 w-6 text-gray-400 mb-2" />
-                    <span className="text-sm text-gray-500">Add Photo</span>
-                  </button>
-                )}
-              </div>
-              <p className="text-sm text-gray-500">Add up to 6 photos. First image will be the cover.</p>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Listing Details</h2>
-
-              <div className="grid gap-2">
-                <Label htmlFor="title">Title</Label>
-                <Input id="title" placeholder="What are you selling?" />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="price">Price ($)</Label>
-                <Input id="price" type="number" placeholder="0.00" />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="category">Category</Label>
-                <Select>
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sports">Sports</SelectItem>
-                    <SelectItem value="clothing">Clothing</SelectItem>
-                    <SelectItem value="electronics">Electronics</SelectItem>
-                    <SelectItem value="games">Games</SelectItem>
-                    <SelectItem value="home">Home</SelectItem>
-                    <SelectItem value="books">Books</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="condition">Condition</Label>
-                <Select>
-                  <SelectTrigger id="condition">
-                    <SelectValue placeholder="Select condition" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="like-new">Like New</SelectItem>
-                    <SelectItem value="good">Good</SelectItem>
-                    <SelectItem value="fair">Fair</SelectItem>
-                    <SelectItem value="poor">Poor</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe your item in detail. Include information about condition, features, and why you're selling."
-                  rows={5}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold mb-4">Photos</h2>
+                <ImageManager
+                  images={images}
+                  onUpload={handleImageUpload}
+                  onDelete={handleImageDelete}
+                  onSetPrimary={handleSetPrimary}
+                  maxImages={6}
+                  loading={isUploadingImages}
+                  disabled={isSubmitting}
                 />
               </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Location</h2>
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Listing Details</h2>
 
-              <div className="grid gap-2">
-                <Label htmlFor="location">Location</Label>
-                <Input id="location" placeholder="City, State" />
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="What are you selling?" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price ($)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          placeholder="0.00" 
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="category_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id.toString()}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="condition"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Condition</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select condition" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="new">New</SelectItem>
+                          <SelectItem value="like-new">Like New</SelectItem>
+                          <SelectItem value="good">Good</SelectItem>
+                          <SelectItem value="fair">Fair</SelectItem>
+                          <SelectItem value="poor">Poor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Describe your item in detail. Include information about condition, features, and why you're selling."
+                          rows={5}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="meetup">Preferred meetup location</Label>
-                <Input id="meetup" placeholder="e.g., Local coffee shop, mall, etc." />
-              </div>
-            </div>
+              <Separator />
 
-            <div className="pt-4">
-              <Button type="submit" className="w-full">
-                Create Listing
-              </Button>
-              <p className="text-sm text-gray-500 text-center mt-4">
-                By listing an item, you agree to our terms of service and community guidelines
-              </p>
-            </div>
-          </form>
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Location</h2>
+
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                        <Input placeholder="City, State" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="preferred_meetup"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preferred meetup location (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Local coffee shop, mall, etc." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="pt-4">
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating Listing...
+                    </>
+                  ) : (
+                    "Create Listing"
+                  )}
+                </Button>
+                <p className="text-sm text-gray-500 text-center mt-4">
+                  By listing an item, you agree to our terms of service and community guidelines
+                </p>
+              </div>
+            </form>
+          </Form>
         </div>
       </main>
 

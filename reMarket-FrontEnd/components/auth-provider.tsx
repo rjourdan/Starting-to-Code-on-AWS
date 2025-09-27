@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { login as apiLogin, logout as apiLogout, getCurrentUser, User } from '@/lib/api';
+import { AppError } from '@/lib/error-utils';
 
 interface AuthContextType {
   user: User | null;
@@ -43,8 +44,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const userData = await getCurrentUser();
         setUser(userData);
       } catch (err) {
-        console.error('Failed to load user:', err);
-        localStorage.removeItem('token');
+        // Silently handle authentication errors on app load
+        // This is expected when tokens expire or are invalid
+        if (err instanceof AppError && (err.status === 401 || err.code === 'AUTH_REQUIRED' || err.code === 'AUTH_EXPIRED')) {
+          // Clear invalid token silently
+          localStorage.removeItem('token');
+          console.log('Authentication token expired or invalid, cleared from storage');
+        } else {
+          // Log unexpected errors but don't show them to user on app load
+          console.error('Unexpected error during authentication check:', err);
+          localStorage.removeItem('token');
+        }
       } finally {
         setIsLoading(false);
       }
