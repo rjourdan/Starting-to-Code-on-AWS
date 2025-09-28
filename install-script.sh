@@ -58,6 +58,7 @@ sudo /opt/bitnami/node/bin/corepack install
 sudo /opt/bitnami/node/bin/corepack enable pnpm
 
 # Install frontend dependencies
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 /opt/bitnami/node/bin/pnpm install
 
 # Update API URL to use /api prefix for nginx proxy
@@ -65,6 +66,7 @@ sed -i "s|export const API_URL = 'http://localhost:8000';|export const API_URL =
 
 # Build frontend with increased memory limit
 echo "Build frontend"
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 NODE_OPTIONS='--max-old-space-size=1024' /opt/bitnami/node/bin/pnpm build
 
 # Create a systemd service for the backend
