@@ -53,9 +53,9 @@ echo "Setup frontend dependencies"
 cd ../reMarket-FrontEnd
 
 # Install and configure corepack for pnpm
-sudo npm install -g --no-update-notifier corepack@latest
-sudo corepack install
-sudo corepack enable pnpm
+sudo /opt/bitnami/node/bin/npm install -g --no-update-notifier corepack@latest
+sudo /opt/bitnami/node/bin/corepack install
+sudo /opt/bitnami/node/bin/corepack enable pnpm
 
 # Install frontend dependencies
 /opt/bitnami/node/bin/pnpm install
