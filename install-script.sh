@@ -120,6 +120,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable remarket-backend.service remarket-frontend.service
 sudo systemctl start remarket-backend.service remarket-frontend.service
 
+# Fix uploads directory permissions
+sudo chown -R bitnami:bitnami /opt/bitnami/projects/remarket/reMarket-BackEnd/uploads
+sudo chmod -R 755 /opt/bitnami/projects/remarket/reMarket-BackEnd/uploads
+
+# Restart backend to ensure it starts properly
+sudo systemctl restart remarket-backend.service
+
 # Stop and disable Bitnami Apache
 sudo /opt/bitnami/ctlscript.sh stop
 sudo systemctl disable bitnami || echo "No bitnami systemd service"
