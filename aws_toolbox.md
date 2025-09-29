@@ -11,6 +11,9 @@ Essential tools to accelerate your AWS development journey. These carefully sele
 ### AWS Account
 Your gateway to the cloud with a **generous Free Tier** that lets you explore and build without upfront costs. Learn more [here](https://aws.amazon.com/free/?trk=0c0bc293-6689-4920-8057-e1ad3368d38a&sc_channel=code)
 
+### Get your BuilderID on AWS Builder Center
+We launched AWS Builder Center to be your central soure to learn, share, and connect with others in the community. Join other developers by [signing-up on AWS Builder Center](https://builder.aws.com/?trk=0c0bc293-6689-4920-8057-e1ad3368d38a&sc_channel=code)
+
 ### AWS CLI
 The **entry point to AWS** - your command-line interface for managing AWS services. Essential for automation, scripting, and quick resource management. Download the CLI for your OS on [AWS Documentations website](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html?trk=0c0bc293-6689-4920-8057-e1ad3368d38a&sc_channel=code).
 
