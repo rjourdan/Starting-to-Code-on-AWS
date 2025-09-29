@@ -62,4 +62,5 @@ coverage/
 .DS_Store
 *.pem
 uploads/
+*.chat
 
